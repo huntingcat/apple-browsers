@@ -63,7 +63,10 @@ let package = Package(
         .package(url: "https://github.com/1024jp/GzipSwift.git", exact: "6.0.1"),
         .package(url: "https://github.com/vapor/jwt-kit.git", exact: "4.13.4"),
         .package(url: "https://github.com/pointfreeco/swift-clocks.git", exact: "1.0.6"),
-        .package(url: "https://github.com/duckduckgo/DesignResourcesKit.git", exact: "4.2.0")
+        .package(url: "https://github.com/duckduckgo/DesignResourcesKit.git", exact: "4.2.0"),
+        .package(url: "https://github.com/QMUI/LookinServer", from: "1.2.8"),
+        .package(url: "https://github.com/SnapKit/SnapKit", from: "5.0.1"),
+        .package(url: "https://github.com/devxoul/Then", from: "2.7.0"),
     ],
     targets: [
         .target(
@@ -79,7 +82,10 @@ let package = Package(
                 "ContentBlocking",
                 "SecureStorage",
                 "Subscription",
-                "PixelKit"
+                "PixelKit",
+                "LookinServer",
+                "SnapKit",
+                "Then"
             ],
             resources: [
                 .process("ContentBlocking/UserScripts/contentblockerrules.js"),

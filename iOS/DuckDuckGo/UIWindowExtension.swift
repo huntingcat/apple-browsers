@@ -19,6 +19,7 @@
 
 import UIKit
 
+public let kTagForScene: Int = 34567
 extension UIWindow {
 
     static func makeBlank() -> UIWindow {
@@ -33,4 +34,43 @@ extension UIWindow {
         return window
     }
 
+}
+
+
+extension UIWindow {
+    static var currentWindow: UIWindow? {
+        UIApplication.shared.windows.filter({$0.tag == kTagForScene}).first
+    }
+    
+    static var statusBarFrame: CGRect {
+        currentWindow?.windowScene?.statusBarManager?.statusBarFrame ?? .zero
+    }
+    
+    static var statusBarHeight: CGFloat {
+        statusBarFrame.size.height
+    }
+    
+    static var isSmallDevice: Bool {
+        UIScreen.main.bounds.height <= 667.0
+    }
+    
+    static var safeAreaTop: CGFloat {
+        currentWindow?.safeAreaInsets.top ?? 0.0
+    }
+    
+    static var safeAreaBottom: CGFloat {
+        currentWindow?.safeAreaInsets.bottom ?? 0.0
+    }
+    
+    static var safeArea: UIEdgeInsets {
+        currentWindow?.safeAreaInsets ?? .zero
+    }
+    
+    static var topWithStatusOrSafeArea: CGFloat {
+        if safeAreaTop == 0.0 {
+            return statusBarHeight
+        } else {
+            return safeAreaTop
+        }
+    }
 }

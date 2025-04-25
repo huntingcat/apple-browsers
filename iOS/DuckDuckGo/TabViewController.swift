@@ -624,11 +624,12 @@ class TabViewController: UIViewController {
                        loadingInitiatedByParentTab: Bool = false,
                        customWebView: ((WKWebViewConfiguration) -> WKWebView)? = nil) {
         instrumentation.willPrepareWebView()
-
+        
         let userContentController = UserContentController()
         configuration.userContentController = userContentController
         userContentController.delegate = self
 
+        
         if let customWebView {
             webView = customWebView(configuration)
             view.layoutIfNeeded()
@@ -1305,7 +1306,7 @@ class TabViewController: UIViewController {
     private func cleanUpBeforeClosing() {
         let job = { [weak webView, userContentController] in
             userContentController.cleanUpBeforeClosing()
-
+            
             webView?.assertObjectDeallocated(after: 4.0)
         }
         guard Thread.isMainThread else {

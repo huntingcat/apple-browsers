@@ -81,3 +81,21 @@ extension String {
         return URL(trimmedAddressBarString: self)
     }
 }
+
+
+extension String {
+    public func toBase64() -> String {
+        return Data(self.utf8).base64EncodedString()
+    }
+    
+    public func originalStringFromBase64() -> String? {
+        guard let data = Data(base64Encoded: self) else { return nil }
+        
+        let result = String(data: data, encoding: .utf8)
+        return result
+    }
+    
+    public var trimmedSearchSuggestionText: String {
+        return self.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+    }
+}

@@ -38,6 +38,7 @@ extension WKWebViewConfiguration {
     }
 
     private static func configuration(persistsData: Bool) -> WKWebViewConfiguration {
+        WKWebView.customHandlerSchemes = [.http, .https]
         let configuration = WKWebViewConfiguration()
         if !persistsData {
             configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
@@ -51,6 +52,10 @@ extension WKWebViewConfiguration {
         configuration.allowsPictureInPictureMediaPlayback = true
         configuration.ignoresViewportScaleLimits = true
         configuration.preferences.isFraudulentWebsiteWarningEnabled = false
+        
+        configuration.setURLSchemeHandler(NativeSniffingSchemeHandler(), forURLScheme: URL.NavigationalScheme.http.rawValue)
+        configuration.setURLSchemeHandler(NativeSniffingSchemeHandler(), forURLScheme: URL.NavigationalScheme.https.rawValue)
+        
 
         return configuration
     }

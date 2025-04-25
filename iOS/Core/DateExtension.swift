@@ -33,3 +33,25 @@ extension Date {
         self > Date().addingTimeInterval(Double(-days) * 24 * 60 * 60)
     }
 }
+
+extension Date {
+    
+    public static let shortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd HH:mm"
+        return formatter
+    }()
+    
+    public static let fullDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter
+    }()
+    
+    public static let syncHistoryFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+    
+}
