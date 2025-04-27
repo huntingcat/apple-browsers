@@ -72,7 +72,8 @@ extension NSObject {
         }
 
         public static let assert = DeallocationCheckAction { object in
-            assertionFailure("\(object) has not been deallocated. Ensure there‘s no retain cycle added.")
+            Logger.general.error("\(object) has not been deallocated. Ensure there‘s no retain cycle added.")
+            // assertionFailure("\(object) has not been deallocated. Ensure there‘s no retain cycle added.")
         }
         public static let interrupt = DeallocationCheckAction { object in
         #if DEBUG

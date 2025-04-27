@@ -22,18 +22,18 @@ import ObjectiveC
 import Common
 
 // MARK: - 核心 Scheme 处理类
-final class NativeSniffingSchemeHandler: NSObject, WKURLSchemeHandler {
+final public class NativeSniffingSchemeHandler: NSObject, WKURLSchemeHandler {
     private let activeTasks = NSMutableArray()
     private let session = NativeSessionManager.shared
     private let cookieSyncQueue = DispatchQueue(label: "com.sniffing.cookie", attributes: .concurrent)
     
     // MARK: - URL Scheme 处理协议实现
-    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+    public func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         activeTasks.add(urlSchemeTask)
         processRequest(urlSchemeTask.request, webView: webView, task: urlSchemeTask)
     }
     
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+    public func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
         activeTasks.remove(urlSchemeTask)
     }
     
@@ -41,7 +41,7 @@ final class NativeSniffingSchemeHandler: NSObject, WKURLSchemeHandler {
     private func processRequest(_ request: URLRequest,
                                webView: WKWebView,
                                task: WKURLSchemeTask) {
-        guard var mutableRequest = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest else { return }
+        guard let mutableRequest = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest else { return }
         
         // 域名特异性 Cookie 同步（参考网页5）
         if let host = request.url?.host, host.contains("qq.com") {
@@ -61,27 +61,35 @@ final class NativeSniffingSchemeHandler: NSObject, WKURLSchemeHandler {
     private func startNetworkTask(_ request: URLRequest,
                                   webView: WKWebView,
                                   task: WKURLSchemeTask) {
-        let dataTask = session.dataTask(with: request) { [weak self] data, response, error in
-            print("NativeSniffingSchemeHandler dataTask \(data) \(response) \(error)")
-            guard let self = self, self.activeTasks.contains(task) else { return }
-            // 响应处理管道
-            if let response = response {
-                // 同步响应Cookie到WKWebView（参考网页8）
-                self.syncResponseCookies(response, webView: webView)
-                // 上报分析数据
-                self.postAnalytics(for: task, request: request, response: response)
-                self.handleResponse(response, task: task)
+        
+        let dataTask = session.dataTask(with: request) { [weak self] dataTask, response in
+            guard let self = self else {
+                dataTask.cancel()
+                return
             }
             
-            if let data = data {
-                self.handleData(data, task: task)
+            // 同步响应Cookie到WKWebView（参考网页8）
+            self.syncResponseCookies(response, webView: webView)
+            // 上报分析数据
+            self.postAnalytics(for: task, request: request, response: response)
+            self.handleResponse(response, dataTask: dataTask, task: task)
+            
+        } receiveData: { [weak self] dataTask, data in
+            guard let self = self else {
+                dataTask.cancel()
+                return
             }
             
-            if data == nil && response == nil {
-                self.handleCompletion(error, task: task)
+            self.handleData(data, dataTask: dataTask, task: task)
+        } receiveComplete: { [weak self] sessionTask, error in
+            guard let self = self else {
+                sessionTask.cancel()
+                return
             }
-           
+            
+            self.handleCompletion(error, sessionTask: sessionTask, task: task)
         }
+
         dataTask.resume()
     }
 }
@@ -131,30 +139,57 @@ extension WKURLSchemeTask {
 
 // MARK: - 响应处理扩展
 extension NativeSniffingSchemeHandler {
-    private func handleResponse(_ response: URLResponse?, task: WKURLSchemeTask) {
-        guard let response = response, !task.hasReceivedResponse else { return }
-        print("NativeSniffingSchemeHandler handleResponse 1")
-        DispatchQueue.main.async {
-            task.didReceive(response)
-            task.hasReceivedResponse = true
+    private func handleResponse(_ response: URLResponse?, dataTask: URLSessionDataTask, task: WKURLSchemeTask) {
+        guard let response = response else {
+            dataTask.cancel()
+            return
+        }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else {
+                dataTask.cancel()
+                return
+            }
+            
+            if task.hasReceivedResponse {
+                dataTask.cancel()
+            } else {
+                if self.activeTasks.contains(task) {
+                    task.didReceive(response)
+                    task.hasReceivedResponse = true
+                } else {
+                    dataTask.cancel()
+                }
+            }
+            
         }
     }
     
-    private func handleData(_ data: Data?, task: WKURLSchemeTask) {
-        print("NativeSniffingSchemeHandler handleData 2 \(data)")
+    private func handleData(_ data: Data?, dataTask: URLSessionDataTask, task: WKURLSchemeTask) {
         data.map { chunk in
-            DispatchQueue.main.async {
-                task.didReceive(chunk)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else {
+                    dataTask.cancel()
+                    return
+                }
+                
+                if self.activeTasks.contains(task) {
+                    task.didReceive(chunk)
+                } else {
+                    dataTask.cancel()
+                }
             }
         }
     }
     
-    private func handleCompletion(_ error: Error?, task: WKURLSchemeTask) {
-        print("NativeSniffingSchemeHandler handleCompletion 3 \(error)")
+    private func handleCompletion(_ error: Error?, sessionTask: URLSessionTask, task: WKURLSchemeTask) {
         DispatchQueue.main.async { [weak self] in
-            guard self?.activeTasks.contains(task) == true else { return }
+            guard let self = self, self.activeTasks.contains(task) == true else {
+                sessionTask.cancel()
+                return
+            }
             error.map { task.didFailWithError($0) } ?? task.didFinish()
-            self?.activeTasks.remove(task)
+            self.activeTasks.remove(task)
         }
     }
 }
@@ -178,14 +213,16 @@ extension NativeSniffingSchemeHandler {
     }
     
     private func syncResponseCookies(_ response: URLResponse?, webView: WKWebView) {
-        guard let httpResponse = response as? HTTPURLResponse else { return }
-        let headers = httpResponse.allHeaderFields
-        
-        if let cookieHeaders = headers["Set-Cookie"] as? String {
-            let cookies = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": cookieHeaders],
-                                            for: httpResponse.url!)
-            cookies.forEach { cookie in
-                webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
+        cookieSyncQueue.sync { [weak self] in
+            guard let self = self, let httpResponse = response as? HTTPURLResponse else { return }
+            let headers = httpResponse.allHeaderFields
+            
+            if let cookieHeaders = headers["Set-Cookie"] as? String {
+                let cookies = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": cookieHeaders],
+                                                 for: httpResponse.url!)
+                cookies.forEach { cookie in
+                    webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
+                }
             }
         }
     }
@@ -201,20 +238,22 @@ final class NativeSessionManager: NSObject, URLSessionDataDelegate {
     private let lock = NSLock()
     
     struct TaskHandler {
-        var didReceiveResponse: ((URLResponse) -> Void)?
-        var didReceiveData: ((Data) -> Void)?
-        var didComplete: ((Error?) -> Void)?
+        var didReceiveResponse: ((URLSessionDataTask, URLResponse) -> Void)?
+        var didReceiveData: ((URLSessionDataTask, Data) -> Void)?
+        var didComplete: ((URLSessionTask, Error?) -> Void)?
         var willRedirect: ((HTTPURLResponse, URLRequest) -> Void)?
     }
     
     func dataTask(with request: URLRequest,
-                  completion: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
+                  recevieResponse: @escaping (URLSessionDataTask, URLResponse) -> Void,
+                  receiveData: @escaping (URLSessionDataTask, Data) -> Void,
+                  receiveComplete: @escaping (URLSessionTask, Error?) -> Void) -> URLSessionDataTask {
         let task = session.dataTask(with: request)
         lock.lock()
         taskHandlers[task.taskIdentifier] = TaskHandler(
-            didReceiveResponse: { response in completion(nil, response, nil) },
-            didReceiveData: { data in completion(data, nil, nil) },
-            didComplete: { error in completion(nil, nil, error) }
+            didReceiveResponse: { (dataTask, response) in recevieResponse(dataTask, response) },
+            didReceiveData: { (dataTask, data) in receiveData(dataTask, data) },
+            didComplete: { (sessionTask, error) in receiveComplete(sessionTask, error) }
         )
         lock.unlock()
         return task
@@ -223,13 +262,13 @@ final class NativeSessionManager: NSObject, URLSessionDataDelegate {
     // MARK: - URLSession 代理方法
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         lock.lock()
-        taskHandlers[dataTask.taskIdentifier]?.didReceiveData?(data)
+        taskHandlers[dataTask.taskIdentifier]?.didReceiveData?(dataTask, data)
         lock.unlock()
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         lock.lock()
-        taskHandlers[task.taskIdentifier]?.didComplete?(error)
+        taskHandlers[task.taskIdentifier]?.didComplete?(task, error)
         taskHandlers.removeValue(forKey: task.taskIdentifier)
         lock.unlock()
     }
@@ -239,7 +278,7 @@ final class NativeSessionManager: NSObject, URLSessionDataDelegate {
         lock.lock()
         defer { lock.unlock() }
         
-        taskHandlers[dataTask.taskIdentifier]?.didReceiveResponse?(response)
+        taskHandlers[dataTask.taskIdentifier]?.didReceiveResponse?(dataTask, response)
         completionHandler(.allow)
     }
     

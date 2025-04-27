@@ -374,8 +374,7 @@ class TabViewController: UIViewController {
     private var userContentController: UserContentController {
         (webView.configuration.userContentController as? UserContentController)!
     }
-
-
+    
     let historyManager: HistoryManaging
     let historyCapture: HistoryCapture
     weak var duckPlayer: DuckPlayerControlling?
@@ -1306,7 +1305,6 @@ class TabViewController: UIViewController {
     private func cleanUpBeforeClosing() {
         let job = { [weak webView, userContentController] in
             userContentController.cleanUpBeforeClosing()
-            
             webView?.assertObjectDeallocated(after: 4.0)
         }
         guard Thread.isMainThread else {

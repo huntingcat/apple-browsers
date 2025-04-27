@@ -52,9 +52,10 @@ extension WKWebViewConfiguration {
         configuration.allowsPictureInPictureMediaPlayback = true
         configuration.ignoresViewportScaleLimits = true
         configuration.preferences.isFraudulentWebsiteWarningEnabled = false
+        var schemeHandler: NativeSniffingSchemeHandler? = NativeSniffingSchemeHandler()
+        configuration.setURLSchemeHandler(schemeHandler, forURLScheme: URL.NavigationalScheme.http.rawValue)
+        configuration.setURLSchemeHandler(schemeHandler, forURLScheme: URL.NavigationalScheme.https.rawValue)
         
-        configuration.setURLSchemeHandler(NativeSniffingSchemeHandler(), forURLScheme: URL.NavigationalScheme.http.rawValue)
-        configuration.setURLSchemeHandler(NativeSniffingSchemeHandler(), forURLScheme: URL.NavigationalScheme.https.rawValue)
         
 
         return configuration
