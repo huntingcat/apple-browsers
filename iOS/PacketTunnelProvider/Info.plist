@@ -4,8 +4,6 @@
 <dict>
 	<key>DuckDuckGoGroupIdentifierPrefix</key>
 	<string>$(GROUP_ID_PREFIX)</string>
-	<key>SUBSCRIPTION_APP_GROUP</key>
-	<string>$(AppIdentifierPrefix)$(SUBSCRIPTION_APP_GROUP)</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
@@ -13,5 +11,7 @@
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).NetworkProtectionPacketTunnelProvider</string>
 	</dict>
+	<key>SUBSCRIPTION_APP_GROUP</key>
+	<string>$(AppIdentifierPrefix)$(SUBSCRIPTION_APP_GROUP)</string>
 </dict>
 </plist>
